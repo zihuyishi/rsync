@@ -90,6 +90,7 @@ class MD5 {
 public:
     /* Construct a MD5 object with a string. */
     MD5(const string& message);
+    MD5(const uint8_t *buf, int size);
 
     /* Generate md5 digest. */
     const byte* getDigest();

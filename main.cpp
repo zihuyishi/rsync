@@ -9,10 +9,10 @@ using namespace std;
 
 vector<uint8_t> readFile(const string& path) {
     ifstream in_file(path, ifstream::binary);
-    auto vec = vector<uint8_t>();
-    const int size = 1024;
-    auto buf = new char[size];
     assert(in_file.is_open());
+    auto vec = vector<uint8_t>();
+    const int size = 1024 * 1024;
+    auto buf = new char[size];
     while (!in_file.eof()) {
         in_file.read(buf, size);
         vec.insert(vec.end(), buf, buf + in_file.gcount());
@@ -20,6 +20,24 @@ vector<uint8_t> readFile(const string& path) {
     delete[] buf;
     in_file.close();
     return vec;
+}
+
+void writeResult(const string& topath, const vector<uint8_t>& originFile, const vector<Package>& result) {
+    ofstream out_file(topath, ofstream::binary);
+    assert(out_file.is_open());
+    for (const auto& package : result) {
+        if (package.type == 1) {
+            // chunk
+            auto offset = package.chunk.offset;
+            out_file.write((const char*)originFile.data() + offset, package.chunk.size);
+        } else {
+            // data
+            out_file.write((const char*)package.data.data(), package.data.size());
+        }
+    }
+    out_file.flush();
+    out_file.close();
+    cout << "write to file " << topath << endl;
 }
 
 void printPackage(const vector<Package>& packages) {
@@ -40,13 +58,15 @@ int main(int argc, const char* argv[]) {
     auto file1 = argv[1];
     auto file2 = argv[2];
     auto buf1 = readFile(file1);
+    cout << "file1 length " << buf1.size() << endl;
     const int size = 2048;
     auto chunks = makeChunk(buf1, size);
-    buf1.clear();
+//    buf1.clear();
     auto buf2 = readFile(file2);
+    cout << "file2 length " << buf2.size() << endl;
 
     typedef std::chrono::high_resolution_clock Time;
-    typedef std::chrono::microseconds ms;
+    typedef std::chrono::milliseconds ms;
     typedef std::chrono::duration<float> fsec;
     auto t0 = Time::now();
 
@@ -55,8 +75,9 @@ int main(int argc, const char* argv[]) {
     auto t1 = Time::now();
     fsec fs = t1 - t0;
     ms d = std::chrono::duration_cast<ms>(fs);
-    cout << "cost " << d.count() << " microsecond\n";
+    cout << "cost " << d.count() << " ms\n";
 
     printPackage(result);
+    writeResult("output", buf1, result);
     return 0;
 }

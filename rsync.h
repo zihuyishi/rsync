@@ -17,18 +17,24 @@ typedef struct {
 
 typedef struct {
     int id;
-    uint32_t ad32;
+    AdlerResult ad32;
     std::string md5;
+    int offset;
+    int size;
 } Chunk;
 
-typedef struct {
+class Package {
+public:
     int type; // 1 - chunk, 2 - data
     Chunk chunk;
     std::vector<uint8_t> data;
-} Package;
+    Package(int _type, Chunk _chunk, std::vector<uint8_t>&& _data):
+        type(_type), chunk(std::move(_chunk)), data(std::move(_data))
+    {}
+};
 
 AdlerResult adler32(const std::vector<uint8_t>& buf, int offset, int size);
-AdlerResult rolling_adler32(const std::vector<uint8_t>& buf, int offset, int size, AdlerResult pre);
+AdlerResult rolling_adler32(const std::vector<uint8_t>& buf, int offset, int size, const AdlerResult& pre);
 std::vector<Package> checksum(const std::vector<uint8_t>& buf, const std::vector<Chunk>& original, int size);
 std::vector<Chunk> makeChunk(const std::vector<uint8_t>& data, int size);
 

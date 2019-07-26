@@ -39,6 +39,20 @@ MD5::MD5(const string& message) {
     init((const byte*)message.c_str(), message.length());
 }
 
+MD5::MD5(const uint8_t *buf, int size) {
+    finished = false;
+    /* Reset number of bits. */
+    count[0] = count[1] = 0;
+    /* Initialization constants. */
+    state[0] = 0x67452301;
+    state[1] = 0xefcdab89;
+    state[2] = 0x98badcfe;
+    state[3] = 0x10325476;
+
+    /* Initialization the object according to message. */
+    init((const byte*)buf, size);
+}
+
 /**
  * @Generate md5 digest.
  *
