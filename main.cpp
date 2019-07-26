@@ -66,7 +66,7 @@ int main(int argc, const char* argv[]) {
     cout << "file2 length " << buf2.size() << endl;
 
     typedef std::chrono::high_resolution_clock Time;
-    typedef std::chrono::milliseconds ms;
+    typedef std::chrono::microseconds ms;
     typedef std::chrono::duration<float> fsec;
     auto t0 = Time::now();
 
@@ -75,9 +75,9 @@ int main(int argc, const char* argv[]) {
     auto t1 = Time::now();
     fsec fs = t1 - t0;
     ms d = std::chrono::duration_cast<ms>(fs);
-    cout << "cost " << d.count() << " ms\n";
+    cout << "cost " << d.count() / 1000.f << " ms\n";
 
-    printPackage(result);
+//    printPackage(result);
     writeResult("output", buf1, result);
     return 0;
 }

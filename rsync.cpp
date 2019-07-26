@@ -1,10 +1,8 @@
 #include "rsync.h"
 #include <map>
-#define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
-#include <cryptopp/md5.h>
+#include <openssl/md5.h>
 
 using namespace std;
-using namespace CryptoPP;
 
 static const uint32_t M = 1u << 16u;
 
@@ -21,12 +19,13 @@ string md5str(const vector<uint8_t>& buf, int offset, int size) {
     if (size + offset >= buf.size()) {
         size = buf.size() - offset;
     }
-    auto md5 = Weak1::MD5();
-    md5.Update(buf.data() + offset, size);
-    char *output = new char[md5.DigestSize()+1];
-    md5.Final((byte *)output);
-    output[md5.DigestSize()] = 0;
-    auto result = string(output);
+    MD5_CTX md5_ctx;
+    MD5_Init(&md5_ctx);
+    MD5_Update(&md5_ctx, buf.data()+offset, size);
+    auto *output = new unsigned char[MD5_DIGEST_LENGTH+1];
+    MD5_Final(output, &md5_ctx);
+    output[MD5_DIGEST_LENGTH] = 0;
+    auto result = string((char*)output);
     delete[] output;
     return result;
 }
