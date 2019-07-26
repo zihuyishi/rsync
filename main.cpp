@@ -7,10 +7,10 @@
 
 using namespace std;
 
-vector<uint8_t> readFile(const string& path) {
+vector<unsigned char> readFile(const string& path) {
     ifstream in_file(path, ifstream::binary);
     assert(in_file.is_open());
-    auto vec = vector<uint8_t>();
+    auto vec = vector<unsigned char>();
     const int size = 1024 * 1024;
     auto buf = new char[size];
     while (!in_file.eof()) {
@@ -22,17 +22,17 @@ vector<uint8_t> readFile(const string& path) {
     return vec;
 }
 
-void writeResult(const string& topath, const vector<uint8_t>& originFile, const vector<Package>& result) {
+void writeResult(const string& topath, const vector<unsigned char>& originFile, const vector<Package>& result) {
     ofstream out_file(topath, ofstream::binary);
     assert(out_file.is_open());
     for (const auto& package : result) {
         if (package.type == 1) {
             // chunk
             auto offset = package.chunk.offset;
-            out_file.write((const char*)originFile.data() + offset, package.chunk.size);
+            out_file.write((char*)(originFile.data() + offset), package.chunk.size);
         } else {
             // data
-            out_file.write((const char*)package.data.data(), package.data.size());
+            out_file.write((char*)package.data.data(), package.data.size());
         }
     }
     out_file.flush();
@@ -59,7 +59,7 @@ int main(int argc, const char* argv[]) {
     auto file2 = argv[2];
     auto buf1 = readFile(file1);
     cout << "file1 length " << buf1.size() << endl;
-    const int size = 2048;
+    const int size = 2048 * 1024;
     auto chunks = makeChunk(buf1, size);
 //    buf1.clear();
     auto buf2 = readFile(file2);

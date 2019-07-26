@@ -16,26 +16,26 @@ typedef struct {
 } AdlerResult;
 
 typedef struct {
-    int id;
+    int64_t id;
     AdlerResult ad32;
     std::string md5;
-    int offset;
-    int size;
+    size_t offset;
+    size_t size;
 } Chunk;
 
 class Package {
 public:
     int type; // 1 - chunk, 2 - data
     Chunk chunk;
-    std::vector<uint8_t> data;
-    Package(int _type, Chunk _chunk, std::vector<uint8_t>&& _data):
+    std::vector<unsigned char> data;
+    Package(int _type, Chunk _chunk, std::vector<unsigned char>&& _data):
         type(_type), chunk(std::move(_chunk)), data(std::move(_data))
     {}
 };
 
-AdlerResult adler32(const std::vector<uint8_t>& buf, int offset, int size);
-AdlerResult rolling_adler32(const std::vector<uint8_t>& buf, int offset, int size, const AdlerResult& pre);
-std::vector<Package> checksum(const std::vector<uint8_t>& buf, const std::vector<Chunk>& original, int size);
-std::vector<Chunk> makeChunk(const std::vector<uint8_t>& data, int size);
+AdlerResult adler32(const std::vector<unsigned char>& buf, size_t offset, size_t size);
+AdlerResult rolling_adler32(const std::vector<unsigned char>& buf, size_t offset, size_t size, const AdlerResult& pre);
+std::vector<Package> checksum(const std::vector<unsigned char>& buf, const std::vector<Chunk>& original, size_t size);
+std::vector<Chunk> makeChunk(const std::vector<unsigned char>& data, size_t size);
 
 #endif //RSYNC_RSYNC_H

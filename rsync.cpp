@@ -1,13 +1,14 @@
 #include "rsync.h"
 #include <map>
 #include <openssl/md5.h>
+#include <iostream>
 
 using namespace std;
 
 static const uint32_t M = 1u << 16u;
 
 /*
-string md5str(const vector<uint8_t>& buf, int offset, int size) {
+string md5str(const vector<char>& buf, int offset, int size) {
     if (size + offset >= buf.size()) {
         size = buf.size() - offset;
     }
@@ -15,7 +16,7 @@ string md5str(const vector<uint8_t>& buf, int offset, int size) {
     return md5.toStr();
 }
  */
-string md5str(const vector<uint8_t>& buf, int offset, int size) {
+string md5str(const vector<unsigned char>& buf, size_t offset, size_t size) {
     if (size + offset >= buf.size()) {
         size = buf.size() - offset;
     }
@@ -30,12 +31,12 @@ string md5str(const vector<uint8_t>& buf, int offset, int size) {
     return result;
 }
 
-AdlerResult adler32(const vector<uint8_t>& buf, int offset, int size) {
+AdlerResult adler32(const vector<unsigned char>& buf, size_t offset, size_t size) {
     uint32_t a = 0;
     uint32_t b = 0;
-    int k = offset;
-    int l = offset + size - 1;
-    for (int i = k; i <= l; i++) {
+    size_t k = offset;
+    size_t l = offset + size - 1;
+    for (size_t i = k; i <= l; i++) {
         if (i >= buf.size()) {
             break;
         }
@@ -54,9 +55,9 @@ AdlerResult adler32(const vector<uint8_t>& buf, int offset, int size) {
     return adlerResult;
 }
 
-AdlerResult rolling_adler32(const vector<uint8_t>& buf, int offset, int size, const AdlerResult& pre) {
-    int k = offset - 1;
-    int l = k + size - 1;
+AdlerResult rolling_adler32(const vector<unsigned char>& buf, size_t offset, size_t size, const AdlerResult& pre) {
+    size_t k = offset - 1;
+    size_t l = k + size - 1;
     uint32_t ak = buf[k];
     uint32_t al1 = 0;
     if (l+1>=buf.size()) {
@@ -74,17 +75,20 @@ AdlerResult rolling_adler32(const vector<uint8_t>& buf, int offset, int size, co
     return result;
 }
 
-vector<Package> checksum(const vector<uint8_t>& buf, const vector<Chunk>& original, int size) {
+vector<Package> checksum(const vector<unsigned char>& buf, const vector<Chunk>& original, size_t size) {
     auto table = new vector<Chunk>[65536];
     for (const auto& chunk : original) {
         table[chunk.ad32.a].push_back(chunk);
     }
 
     auto result = vector<Package>();
-    auto stackData = vector<uint8_t>();
+    result.reserve(original.size());
+    auto stackData = vector<unsigned char>();
     bool hasPre = false;
     AdlerResult pre;
-    for (auto k = 0; k < buf.size(); k++) {
+    size_t ad32_i = 0;
+    size_t md5_i = 0;
+    for (size_t k = 0; k < buf.size(); k++) {
         AdlerResult adler;
         if (hasPre) {
             adler = rolling_adler32(buf, k, size, pre);
@@ -101,10 +105,12 @@ vector<Package> checksum(const vector<uint8_t>& buf, const vector<Chunk>& origin
                 if (chunk.ad32.s != adler.s) {
                     continue;
                 }
+                ad32_i++;
                 if (vmd5.length() == 0) {
                     vmd5 = md5str(buf, k, size);
                 }
-                if (chunk.md5 == vmd5) {
+                if (vmd5 == chunk.md5) {
+                    md5_i++;
                     if (!stackData.empty()) {
                         auto pack = Package (
                             2,
@@ -112,12 +118,12 @@ vector<Package> checksum(const vector<uint8_t>& buf, const vector<Chunk>& origin
                             std::move(stackData)
                         );
                         result.push_back(pack);
-//                        stackData = vector<uint8_t>();
+//                        stackData = vector<char>();
                     }
                     auto chunkPack = Package {
                         1,
                         chunk,
-                        vector<uint8_t>(),
+                        vector<unsigned char>(),
                     };
                     result.push_back(chunkPack);
                     k += size - 1;
@@ -142,22 +148,23 @@ vector<Package> checksum(const vector<uint8_t>& buf, const vector<Chunk>& origin
         );
         result.push_back(pack);
     }
+    std::cout << "ad32 " << ad32_i << " md5 " << md5_i << std::endl;
     return result;
 }
 
-vector<Chunk> makeChunk(const vector<uint8_t>& data, int size) {
-    auto len = data.size();
-    auto count = (len-1) / size + 1;
+vector<Chunk> makeChunk(const vector<unsigned char>& data, size_t size) {
+    size_t len = data.size();
+    size_t count = (len-1) / size + 1;
     auto result = vector<Chunk>();
-    for (auto i = 0; i < count; i++) {
-        auto realSize = size;
+    for (size_t i = 0; i < count; i++) {
+        size_t realSize = size;
         if ((i+1) * size >= data.size()) {
             realSize = data.size() - i * size;
         }
         auto adler = adler32(data, i * size, realSize);
         auto md5 = md5str(data, i * size, realSize);
         auto chunk = Chunk {
-            i,
+            (int64_t)i,
             adler,
             std::move(md5),
             i * size,
