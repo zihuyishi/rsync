@@ -7,6 +7,41 @@ using namespace std;
 
 static const uint32_t M = 1u << 16u;
 
+class ChunkHashTable {
+    map<uint32_t, vector<Chunk>> m_table;
+public:
+    ChunkHashTable() = default;
+    vector<Chunk>& get(const AdlerResult& key) {
+        auto result = m_table.find(key.s);
+        if (result == m_table.end()) {
+            m_table.insert(make_pair(key.s, vector<Chunk>()));
+            return m_table[key.s];
+        }
+        return result->second;
+    }
+    bool exists(const AdlerResult& key) {
+        return m_table.find(key.s) != m_table.end();
+    }
+};
+
+class ChunkArrayTable {
+    vector<Chunk> *m_table;
+public:
+    ChunkArrayTable() {
+        m_table = new vector<Chunk>[65537];
+    }
+    ~ChunkArrayTable() {
+        delete[] m_table;
+    }
+
+    vector<Chunk>& get(const AdlerResult& key) {
+        return m_table[key.a];
+    }
+    bool exists(const AdlerResult& key) {
+        return !m_table[key.a].empty();
+    }
+};
+
 /*
 string md5str(const vector<char>& buf, int offset, int size) {
     if (size + offset >= buf.size()) {
