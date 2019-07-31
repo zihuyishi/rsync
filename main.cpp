@@ -22,7 +22,7 @@ vector<RChar> readFile(const string& path) {
     return vec;
 }
 
-void writeResult(const string& topath, const vector<RChar>& originFile, const vector<Package>& result) {
+void writeResult(const string& topath, const vector<RChar>& originFile, const list<Package>& result) {
     ofstream out_file(topath, ofstream::binary);
     assert(out_file.is_open());
     for (const auto& package : result) {
@@ -57,10 +57,11 @@ int main(int argc, const char* argv[]) {
     }
     auto file1 = argv[1];
     auto file2 = argv[2];
-    auto buf1 = readFile(file1);
-    cout << "file1 length " << buf1.size() << endl;
+//    auto buf1 = readFile(file1);
+//    cout << "file1 length " << buf1.size() << endl;
     const int size = 2048 * 1024;
-    auto chunks = makeChunk(buf1, size);
+    auto chunks = makeChunkFromFile(file1, size);
+    cout << "file1 make chunks \n";
 //    buf1.clear();
     auto buf2 = readFile(file2);
     cout << "file2 length " << buf2.size() << endl;
@@ -78,6 +79,7 @@ int main(int argc, const char* argv[]) {
     cout << "cost " << d.count() / 1000.f << " ms\n";
 
 //    printPackage(result);
-    writeResult("output", buf1, result);
+//    writeResult("output", buf1, result);
+    writeResultToFile(file1, "output", result, size);
     return 0;
 }

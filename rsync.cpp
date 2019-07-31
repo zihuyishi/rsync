@@ -2,6 +2,7 @@
 #include <map>
 #include <openssl/md5.h>
 #include <iostream>
+#include <fstream>
 
 using namespace std;
 
@@ -52,13 +53,11 @@ string md5str(const vector<char>& buf, int offset, int size) {
 }
  */
 static const char HEX16[16] = {'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};
-string md5str(const vector<RChar>& buf, size_t offset, size_t size) {
-    if (size + offset >= buf.size()) {
-        size = buf.size() - offset;
-    }
+
+string md5str(const RChar* buf, size_t offset, size_t size) {
     MD5_CTX md5_ctx;
     MD5_Init(&md5_ctx);
-    MD5_Update(&md5_ctx, buf.data()+offset, size);
+    MD5_Update(&md5_ctx, buf+offset, size);
     auto *output = new unsigned char[MD5_DIGEST_LENGTH];
     MD5_Final(output, &md5_ctx);
     string result;
@@ -73,15 +72,23 @@ string md5str(const vector<RChar>& buf, size_t offset, size_t size) {
     return result;
 }
 
+string md5str(const vector<RChar>& buf, size_t offset, size_t size) {
+    if (size + offset >= buf.size()) {
+        size = buf.size() - offset;
+    }
+    return md5str(buf.data(), offset, size);
+}
+
 AdlerResult adler32(const vector<RChar>& buf, size_t offset, size_t size) {
+    return adler32(buf.data(), offset, size);
+}
+
+AdlerResult adler32(const RChar *buf, size_t offset, size_t size) {
     uint32_t a = 0;
     uint32_t b = 0;
     size_t k = offset;
     size_t l = offset + size - 1;
     for (size_t i = k; i <= l; i++) {
-        if (i >= buf.size()) {
-            break;
-        }
         int v = buf[i];
         a += v;
         b += (l - i + 1) * v;
@@ -90,9 +97,9 @@ AdlerResult adler32(const vector<RChar>& buf, size_t offset, size_t size) {
     b = b % M;
     uint32_t s = a + (b << 16u);
     auto adlerResult = AdlerResult {
-        a,
-        b,
-        s,
+            a,
+            b,
+            s,
     };
     return adlerResult;
 }
@@ -117,15 +124,15 @@ AdlerResult rolling_adler32(const vector<RChar>& buf, size_t offset, size_t size
     return result;
 }
 
-vector<Package> checksum(const vector<RChar>& buf, const vector<Chunk>& original, size_t size) {
-    auto table = new vector<Chunk>[65536];
-    for (const auto& chunk : original) {
-        table[chunk.ad32.a].push_back(chunk);
+list<Package> checksum(const vector<RChar>& buf, const forward_list<Chunk>& original, size_t size) {
+    auto table = new forward_list<Chunk>[65536];
+    for (auto& chunk : original) {
+        table[chunk.ad32.a].push_front(std::move(chunk));
     }
 
-    auto result = vector<Package>();
-    result.reserve(original.size());
-    auto stackData = vector<RChar>();
+    auto result = list<Package>();
+    size_t stackStart = 0;
+    size_t stackEnd = 0;
     bool hasPre = false;
     AdlerResult pre;
     size_t ad32_i = 0;
@@ -135,7 +142,8 @@ vector<Package> checksum(const vector<RChar>& buf, const vector<Chunk>& original
         if (hasPre) {
             adler = rolling_adler32(buf, k, size, pre);
         } else {
-            adler = adler32(buf, k, size);
+            size_t realSize = std::min(size, buf.size() - k);
+            adler = adler32(buf, k, realSize);
         }
         pre = adler;
         hasPre = true;
@@ -153,13 +161,16 @@ vector<Package> checksum(const vector<RChar>& buf, const vector<Chunk>& original
                 }
                 if (vmd5 == chunk.md5) {
                     md5_i++;
-                    if (!stackData.empty()) {
+                    if (stackEnd > stackStart) {
+                        auto stackData = vector<RChar>();
+                        stackData.reserve(stackEnd - stackStart);
+                        stackData.insert(stackData.begin(), buf.data()+stackStart, buf.data()+stackEnd);
                         auto pack = Package (
                             2,
                             Chunk{},
                             std::move(stackData)
                         );
-                        result.push_back(pack);
+                        result.push_back(std::move(pack));
 //                        stackData = vector<char>();
                     }
                     auto chunkPack = Package {
@@ -167,37 +178,41 @@ vector<Package> checksum(const vector<RChar>& buf, const vector<Chunk>& original
                         chunk,
                         vector<RChar>(),
                     };
-                    result.push_back(chunkPack);
+                    result.push_back(std::move(chunkPack));
                     k += size - 1;
+                    stackStart = k + 1;
                     hasPre = false;
                     found = true;
                     break;
                 }
             }
             if (!found) {
-                stackData.push_back(buf[k]);
+                stackEnd = k + 1;
             }
         } else {
-            stackData.push_back(buf[k]);
+            stackEnd = k + 1;
         }
     }
     delete[] table;
-    if (!stackData.empty()) {
+    if (stackEnd > stackStart) {
+        auto stackData = vector<RChar>();
+        stackData.reserve(stackEnd - stackStart);
+        stackData.insert(stackData.begin(), buf.data()+stackStart, buf.data()+stackEnd);
         auto pack = Package (
             2,
             Chunk{},
             std::move(stackData)
         );
-        result.push_back(pack);
+        result.push_back(std::move(pack));
     }
     std::cout << "ad32 " << ad32_i << " md5 " << md5_i << std::endl;
     return result;
 }
 
-vector<Chunk> makeChunk(const vector<RChar>& data, size_t size) {
+forward_list<Chunk> makeChunk(const vector<RChar>& data, size_t size) {
     size_t len = data.size();
     size_t count = (len-1) / size + 1;
-    auto result = vector<Chunk>();
+    auto result = forward_list<Chunk>();
     for (size_t i = 0; i < count; i++) {
         size_t realSize = size;
         if ((i+1) * size >= data.size()) {
@@ -212,7 +227,59 @@ vector<Chunk> makeChunk(const vector<RChar>& data, size_t size) {
             i * size,
             realSize
         };
-        result.push_back(chunk);
+        result.push_front(std::move(chunk));
     }
     return result;
+}
+
+forward_list<Chunk> makeChunkFromFile(const string& path, size_t size) {
+    ifstream in_file(path, ifstream::binary);
+    assert(in_file.is_open());
+    auto buf = new char[size];
+    int64_t i = 0;
+    size_t offset = 0;
+    auto result = forward_list<Chunk>();
+    while (!in_file.eof()) {
+        in_file.read(buf, size);
+        auto realSize = in_file.gcount();
+        auto adler = adler32((const RChar*)buf, 0, realSize);
+        auto md5 = md5str((const RChar*)buf, 0, realSize);
+        auto chunk = Chunk {
+            i,
+            adler,
+            std::move(md5),
+            offset,
+            static_cast<size_t>(realSize),
+        };
+        result.push_front(std::move(chunk));
+        offset += realSize;
+        i++;
+    }
+    delete[] buf;
+    in_file.close();
+    return result;
+}
+
+void writeResultToFile(const string& sourceFile, const string& topath, const list<Package>& result, size_t size) {
+    ifstream in_file(sourceFile, ifstream::binary);
+    assert(in_file.is_open());
+    ofstream out_file(topath, ofstream::binary);
+    assert(out_file.is_open());
+    auto buf = new char[size];
+    for (const auto& package : result) {
+        if (package.type == 1) {
+            // chunk
+            in_file.seekg(package.chunk.offset);
+            in_file.read(buf, package.chunk.size);
+            out_file.write(buf, package.chunk.size);
+        } else {
+            // data
+            out_file.write((char*)package.data.data(), package.data.size());
+        }
+    }
+    delete[] buf;
+    out_file.flush();
+    in_file.close();
+    out_file.close();
+    cout << "write to file " << topath << endl;
 }
