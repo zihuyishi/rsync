@@ -124,7 +124,7 @@ AdlerResult rolling_adler32(const vector<RChar>& buf, size_t offset, size_t size
     return result;
 }
 
-list<Package> checksum(const vector<RChar>& buf, const forward_list<Chunk>& original, size_t size) {
+list<Package> checksum(const vector<RChar>& buf, forward_list<Chunk>& original, size_t size) {
     auto table = new forward_list<Chunk>[65536];
     for (auto& chunk : original) {
         table[chunk.ad32.a].push_front(std::move(chunk));
@@ -220,13 +220,13 @@ forward_list<Chunk> makeChunk(const vector<RChar>& data, size_t size) {
         }
         auto adler = adler32(data, i * size, realSize);
         auto md5 = md5str(data, i * size, realSize);
-        auto chunk = Chunk {
+        auto chunk = Chunk (
             (int64_t)i,
             adler,
             std::move(md5),
             i * size,
             realSize
-        };
+        );
         result.push_front(std::move(chunk));
     }
     return result;

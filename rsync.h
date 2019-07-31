@@ -19,12 +19,21 @@ typedef struct {
     uint32_t s;
 } AdlerResult;
 
-typedef struct {
+typedef struct Chunk {
     int64_t id;
     AdlerResult ad32;
     std::string md5;
     size_t offset;
     size_t size;
+    Chunk() = default;
+    Chunk(const Chunk& o) = default;
+    Chunk(int64_t _id, AdlerResult _ad32, std::string&& _md5, size_t _offset, size_t _size) :
+        id(_id), ad32(_ad32), md5(std::move(_md5)), offset(_offset), size(_size)
+    {}
+    Chunk(Chunk&& o) noexcept :
+        id(o.id), ad32(o.ad32), md5(std::move(o.md5)),
+        offset(o.offset), size(o.size)
+    {}
 } Chunk;
 
 class Package {
@@ -43,7 +52,7 @@ public:
 AdlerResult adler32(const std::vector<RChar>& buf, size_t offset, size_t size);
 AdlerResult adler32(const RChar *buf, size_t offset, size_t size);
 AdlerResult rolling_adler32(const std::vector<RChar>& buf, size_t offset, size_t size, const AdlerResult& pre);
-std::list<Package> checksum(const std::vector<RChar>& buf, const std::forward_list<Chunk>& original, size_t size);
+std::list<Package> checksum(const std::vector<RChar>& buf, std::forward_list<Chunk>& original, size_t size);
 std::forward_list<Chunk> makeChunk(const std::vector<RChar>& data, size_t size);
 std::forward_list<Chunk> makeChunkFromFile(const std::string& path, size_t size);
 void writeResultToFile(const std::string& sourceFile, const std::string& topath, const std::list<Package>& result, size_t size);
