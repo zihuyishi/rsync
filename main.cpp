@@ -7,7 +7,7 @@
 
 using namespace std;
 
-vector<RChar> readFile(const string& path) {
+vector<RChar> readFile(const string &path) {
     ifstream in_file(path, ifstream::binary);
     assert(in_file.is_open());
     auto vec = vector<RChar>();
@@ -22,17 +22,19 @@ vector<RChar> readFile(const string& path) {
     return vec;
 }
 
-void writeResult(const string& topath, const vector<RChar>& originFile, const list<Package>& result) {
+void writeResult(const string &topath, const vector<RChar> &originFile, const vector<RChar> &buf,
+                 const list<Package> &result) {
     ofstream out_file(topath, ofstream::binary);
     assert(out_file.is_open());
-    for (const auto& package : result) {
+    for (const auto &package : result) {
         if (package.type == 1) {
             // chunk
             auto offset = package.chunk.offset;
-            out_file.write((char*)(originFile.data() + offset), package.chunk.size);
+            out_file.write((char *) (originFile.data() + offset), package.chunk.size);
         } else {
             // data
-            out_file.write((char*)package.data.data(), package.data.size());
+            auto size = package.data.end - package.data.start;
+            out_file.write((char *) buf.data() + package.data.start, size);
         }
     }
     out_file.flush();
@@ -40,17 +42,17 @@ void writeResult(const string& topath, const vector<RChar>& originFile, const li
     cout << "write to file " << topath << endl;
 }
 
-void printPackage(const vector<Package>& packages) {
-    for (const auto& p : packages) {
+void printPackage(const vector<Package> &packages) {
+    for (const auto &p : packages) {
         if (p.type == 1) {
             cout << "package type is chunk, id " << p.chunk.id << std::endl;
         } else {
-            cout << "package type is data, length " << p.data.size() << std::endl;
+            cout << "package type is data, length " << p.data.end - p.data.start << std::endl;
         }
     }
 }
 
-int main(int argc, const char* argv[]) {
+int main(int argc, const char *argv[]) {
     if (argc < 3) {
         cout << "usage: rsync [file1] [file2]" << std::endl;
         return 1;
@@ -80,6 +82,6 @@ int main(int argc, const char* argv[]) {
 
 //    printPackage(result);
 //    writeResult("output", buf1, result);
-    writeResultToFile(file1, "output", result, size);
+    writeResultToFile(file1, "output", buf2, result, size);
     return 0;
 }

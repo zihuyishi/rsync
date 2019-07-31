@@ -25,36 +25,50 @@ typedef struct Chunk {
     std::string md5;
     size_t offset;
     size_t size;
+
     Chunk() = default;
-    Chunk(const Chunk& o) = default;
-    Chunk(int64_t _id, AdlerResult _ad32, std::string&& _md5, size_t _offset, size_t _size) :
-        id(_id), ad32(_ad32), md5(std::move(_md5)), offset(_offset), size(_size)
-    {}
-    Chunk(Chunk&& o) noexcept :
-        id(o.id), ad32(o.ad32), md5(std::move(o.md5)),
-        offset(o.offset), size(o.size)
-    {}
+
+    Chunk(const Chunk &o) = default;
+
+    Chunk(int64_t _id, AdlerResult _ad32, std::string &&_md5, size_t _offset, size_t _size) :
+            id(_id), ad32(_ad32), md5(std::move(_md5)), offset(_offset), size(_size) {}
+
+    Chunk(Chunk &&o) noexcept :
+            id(o.id), ad32(o.ad32), md5(std::move(o.md5)),
+            offset(o.offset), size(o.size) {}
 } Chunk;
+
+typedef struct {
+    size_t start;
+    size_t end;
+} VectorView;
 
 class Package {
 public:
     int type; // 1 - chunk, 2 - data
     Chunk chunk;
-    std::vector<RChar> data;
-    Package(int _type, Chunk _chunk, std::vector<RChar>&& _data):
-        type(_type), chunk(std::move(_chunk)), data(std::move(_data))
-    {}
-    Package(Package&& o) noexcept :
-        type(o.type), chunk(std::move(o.chunk)), data(std::move(o.data))
-    {}
+    VectorView data;
+
+    Package(int _type, Chunk _chunk, const VectorView &_data) :
+            type(_type), chunk(std::move(_chunk)), data(_data) {}
+
+    Package(Package &&o) noexcept :
+            type(o.type), chunk(std::move(o.chunk)), data(o.data) {}
 };
 
-AdlerResult adler32(const std::vector<RChar>& buf, size_t offset, size_t size);
+AdlerResult adler32(const std::vector<RChar> &buf, size_t offset, size_t size);
+
 AdlerResult adler32(const RChar *buf, size_t offset, size_t size);
-AdlerResult rolling_adler32(const std::vector<RChar>& buf, size_t offset, size_t size, const AdlerResult& pre);
-std::list<Package> checksum(const std::vector<RChar>& buf, std::forward_list<Chunk>& original, size_t size);
-std::forward_list<Chunk> makeChunk(const std::vector<RChar>& data, size_t size);
-std::forward_list<Chunk> makeChunkFromFile(const std::string& path, size_t size);
-void writeResultToFile(const std::string& sourceFile, const std::string& topath, const std::list<Package>& result, size_t size);
+
+AdlerResult rolling_adler32(const std::vector<RChar> &buf, size_t offset, size_t size, const AdlerResult &pre);
+
+std::list<Package> checksum(const std::vector<RChar> &buf, std::forward_list<Chunk> &original, size_t size);
+
+std::forward_list<Chunk> makeChunk(const std::vector<RChar> &data, size_t size);
+
+std::forward_list<Chunk> makeChunkFromFile(const std::string &path, size_t size);
+
+void writeResultToFile(const std::string &sourceFile, const std::string &topath, const std::vector<RChar> &data,
+                       const std::list<Package> &result, size_t size);
 
 #endif //RSYNC_RSYNC_H
