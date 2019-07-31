@@ -7,10 +7,10 @@
 
 using namespace std;
 
-vector<unsigned char> readFile(const string& path) {
+vector<RChar> readFile(const string& path) {
     ifstream in_file(path, ifstream::binary);
     assert(in_file.is_open());
-    auto vec = vector<unsigned char>();
+    auto vec = vector<RChar>();
     const int size = 1024 * 1024;
     auto buf = new char[size];
     while (!in_file.eof()) {
@@ -22,7 +22,7 @@ vector<unsigned char> readFile(const string& path) {
     return vec;
 }
 
-void writeResult(const string& topath, const vector<unsigned char>& originFile, const vector<Package>& result) {
+void writeResult(const string& topath, const vector<RChar>& originFile, const vector<Package>& result) {
     ofstream out_file(topath, ofstream::binary);
     assert(out_file.is_open());
     for (const auto& package : result) {

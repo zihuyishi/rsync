@@ -28,7 +28,7 @@ class ChunkArrayTable {
     vector<Chunk> *m_table;
 public:
     ChunkArrayTable() {
-        m_table = new vector<Chunk>[65537];
+        m_table = new vector<Chunk>[65536];
     }
     ~ChunkArrayTable() {
         delete[] m_table;
@@ -51,22 +51,29 @@ string md5str(const vector<char>& buf, int offset, int size) {
     return md5.toStr();
 }
  */
-string md5str(const vector<unsigned char>& buf, size_t offset, size_t size) {
+static const char HEX16[16] = {'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};
+string md5str(const vector<RChar>& buf, size_t offset, size_t size) {
     if (size + offset >= buf.size()) {
         size = buf.size() - offset;
     }
     MD5_CTX md5_ctx;
     MD5_Init(&md5_ctx);
     MD5_Update(&md5_ctx, buf.data()+offset, size);
-    auto *output = new unsigned char[MD5_DIGEST_LENGTH+1];
+    auto *output = new unsigned char[MD5_DIGEST_LENGTH];
     MD5_Final(output, &md5_ctx);
-    output[MD5_DIGEST_LENGTH] = 0;
-    auto result = string((char*)output);
+    string result;
+    result.reserve(MD5_DIGEST_LENGTH * 2+1);
+    for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
+        auto l = output[i] % 16;
+        auto h = output[i] / 16;
+        result.append(1, HEX16[h]);
+        result.append(1, HEX16[l]);
+    }
     delete[] output;
     return result;
 }
 
-AdlerResult adler32(const vector<unsigned char>& buf, size_t offset, size_t size) {
+AdlerResult adler32(const vector<RChar>& buf, size_t offset, size_t size) {
     uint32_t a = 0;
     uint32_t b = 0;
     size_t k = offset;
@@ -90,7 +97,7 @@ AdlerResult adler32(const vector<unsigned char>& buf, size_t offset, size_t size
     return adlerResult;
 }
 
-AdlerResult rolling_adler32(const vector<unsigned char>& buf, size_t offset, size_t size, const AdlerResult& pre) {
+AdlerResult rolling_adler32(const vector<RChar>& buf, size_t offset, size_t size, const AdlerResult& pre) {
     size_t k = offset - 1;
     size_t l = k + size - 1;
     uint32_t ak = buf[k];
@@ -110,7 +117,7 @@ AdlerResult rolling_adler32(const vector<unsigned char>& buf, size_t offset, siz
     return result;
 }
 
-vector<Package> checksum(const vector<unsigned char>& buf, const vector<Chunk>& original, size_t size) {
+vector<Package> checksum(const vector<RChar>& buf, const vector<Chunk>& original, size_t size) {
     auto table = new vector<Chunk>[65536];
     for (const auto& chunk : original) {
         table[chunk.ad32.a].push_back(chunk);
@@ -118,7 +125,7 @@ vector<Package> checksum(const vector<unsigned char>& buf, const vector<Chunk>& 
 
     auto result = vector<Package>();
     result.reserve(original.size());
-    auto stackData = vector<unsigned char>();
+    auto stackData = vector<RChar>();
     bool hasPre = false;
     AdlerResult pre;
     size_t ad32_i = 0;
@@ -158,7 +165,7 @@ vector<Package> checksum(const vector<unsigned char>& buf, const vector<Chunk>& 
                     auto chunkPack = Package {
                         1,
                         chunk,
-                        vector<unsigned char>(),
+                        vector<RChar>(),
                     };
                     result.push_back(chunkPack);
                     k += size - 1;
@@ -187,7 +194,7 @@ vector<Package> checksum(const vector<unsigned char>& buf, const vector<Chunk>& 
     return result;
 }
 
-vector<Chunk> makeChunk(const vector<unsigned char>& data, size_t size) {
+vector<Chunk> makeChunk(const vector<RChar>& data, size_t size) {
     size_t len = data.size();
     size_t count = (len-1) / size + 1;
     auto result = vector<Chunk>();

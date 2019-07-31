@@ -9,6 +9,8 @@
 #include <vector>
 #include <string>
 
+typedef char RChar;
+
 typedef struct {
     uint32_t a;
     uint32_t b;
@@ -27,15 +29,15 @@ class Package {
 public:
     int type; // 1 - chunk, 2 - data
     Chunk chunk;
-    std::vector<unsigned char> data;
-    Package(int _type, Chunk _chunk, std::vector<unsigned char>&& _data):
+    std::vector<RChar> data;
+    Package(int _type, Chunk _chunk, std::vector<RChar>&& _data):
         type(_type), chunk(std::move(_chunk)), data(std::move(_data))
     {}
 };
 
-AdlerResult adler32(const std::vector<unsigned char>& buf, size_t offset, size_t size);
-AdlerResult rolling_adler32(const std::vector<unsigned char>& buf, size_t offset, size_t size, const AdlerResult& pre);
-std::vector<Package> checksum(const std::vector<unsigned char>& buf, const std::vector<Chunk>& original, size_t size);
-std::vector<Chunk> makeChunk(const std::vector<unsigned char>& data, size_t size);
+AdlerResult adler32(const std::vector<RChar>& buf, size_t offset, size_t size);
+AdlerResult rolling_adler32(const std::vector<RChar>& buf, size_t offset, size_t size, const AdlerResult& pre);
+std::vector<Package> checksum(const std::vector<RChar>& buf, const std::vector<Chunk>& original, size_t size);
+std::vector<Chunk> makeChunk(const std::vector<RChar>& data, size_t size);
 
 #endif //RSYNC_RSYNC_H
