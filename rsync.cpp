@@ -3,8 +3,14 @@
 #include <openssl/md5.h>
 #include <iostream>
 #include <fstream>
+#include <rapidjson/document.h>
+#include <rapidjson/filereadstream.h>
+#include <rapidjson/filewritestream.h>
+#include <rapidjson/writer.h>
+#include <msgpack.hpp>
 
 using namespace std;
+using namespace rapidjson;
 
 static const uint32_t M = 1u << 16u;
 
@@ -67,8 +73,8 @@ string md5str(const RChar *buf, size_t offset, size_t size) {
     string result;
     result.reserve(MD5_DIGEST_LENGTH * 2 + 1);
     for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
-        auto l = output[i] % 16;
         auto h = output[i] / 16;
+        auto l = output[i] % 16;
         result.append(1, HEX16[h]);
         result.append(1, HEX16[l]);
     }
@@ -166,9 +172,6 @@ list<Package> checksum(const vector<RChar> &buf, forward_list<Chunk> &original, 
                 if (vmd5 == chunk.md5) {
                     md5_i++;
                     if (stackEnd > stackStart) {
-                        auto stackData = vector<RChar>();
-                        stackData.reserve(stackEnd - stackStart);
-                        stackData.insert(stackData.begin(), buf.data() + stackStart, buf.data() + stackEnd);
                         auto pack = Package(
                                 2,
                                 Chunk{},
@@ -193,11 +196,20 @@ list<Package> checksum(const vector<RChar> &buf, forward_list<Chunk> &original, 
                     break;
                 }
             }
-            if (!found) {
-                stackEnd = k + 1;
-            }
-        } else {
-            stackEnd = k + 1;
+        }
+        stackEnd = k + 1;
+        // make pack data not large than size
+        if (stackEnd - stackStart >= size * 5) {
+            auto pack = Package(
+                    2,
+                    Chunk{},
+                    VectorView{
+                            stackStart,
+                            stackEnd
+                    }
+            );
+            result.push_back(std::move(pack));
+            stackStart = stackEnd;
         }
     }
     delete[] table;
@@ -291,4 +303,105 @@ void writeResultToFile(const string &sourceFile, const string &topath, const vec
     in_file.close();
     out_file.close();
     cout << "write to file " << topath << endl;
+}
+
+JsonChunk loadJsonChunks(const string &path) {
+    FILE *fp = fopen(path.c_str(), "r");
+    char readBuffer[65536];
+    rapidjson::FileReadStream is(fp, readBuffer, sizeof(readBuffer));
+    rapidjson::Document d;
+    d.ParseStream(is);
+    fclose(fp);
+    assert(d.IsObject());
+    assert(d.HasMember("fileRefId"));
+    assert(d["fileRefId"].IsString());
+    string fileRefId = d["fileRefId"].GetString();
+    assert(d.HasMember("size"));
+    assert(d["size"].IsInt());
+    size_t size = d["size"].GetInt();
+    assert(d.HasMember("data"));
+    assert(d["data"].IsArray());
+    auto data = d["data"].GetArray();
+    auto chunks = forward_list<Chunk>();
+    for (SizeType i = 0; i < data.Size(); i++) {
+        auto v = data[i].GetObject();
+        assert(v.HasMember("id"));
+        assert(v["id"].IsInt64());
+        int64_t id = v["id"].GetInt64();
+        assert(v.HasMember("adler32"));
+        assert(v["adler32"].IsUint());
+        uint32_t adler32 = v["adler32"].GetUint();
+        assert(v.HasMember("md5"));
+        assert(v["md5"].IsString());
+        string md5 = v["md5"].GetString();
+        auto adler = AdlerResult{
+                adler32 % M,
+                adler32 / M,
+                adler32,
+        };
+        Chunk chunk(id, adler, std::move(md5), 0, 0);
+        chunks.push_front(std::move(chunk));
+    }
+    return JsonChunk(std::move(fileRefId), size, std::move(chunks));
+}
+
+void writeResultToJson(const string &path, const list<Package> &result, const vector<RChar> buf) {
+    FILE* fp = fopen(path.c_str(), "w");
+    char writeBuffer[65536];
+    FileWriteStream os(fp, writeBuffer, sizeof(writeBuffer));
+    Writer<FileWriteStream> writer(os);
+
+    writer.StartObject();
+    writer.Key("fileId");
+    writer.String("123456");
+    writer.Key("version");
+    writer.Int(0);
+    writer.Key("data");
+    writer.StartArray();
+    for (const auto& pack : result) {
+        writer.StartObject();
+        writer.Key("type");
+        writer.Int(pack.type);
+        if (pack.type == 1) {
+            // chunk
+            writer.Key("chunkId");
+            writer.Int64(pack.chunk.id);
+        } else {
+            // data
+            writer.Key("data");
+            writer.StartArray();
+            for (auto i = pack.data.start; i < pack.data.end; i++) {
+                writer.Int(buf[i]);
+            }
+            writer.EndArray();
+        }
+        writer.EndObject();
+    }
+    writer.EndArray();
+    writer.EndObject();
+
+    fclose(fp);
+    cout << "write result json to " << path << endl;
+}
+
+
+void writeResultToStream(const string &path, const list<Package> &result, const vector<RChar> buf, ostream os) {
+    msgpack::packer<ostream> pk(&os);
+    pk.pack(std::string("123456")); // fileId
+    pk.pack(0); // version
+    pk.pack_array(result.size());
+    for (const auto& pack : result) {
+        pk.pack_map(2);
+        pk.pack(string("type"));
+        pk.pack(pack.type);
+        if (pack.type == 1) {
+            pk.pack(string("chunkId"));
+            pk.pack_int64(pack.chunk.id);
+        } else {
+            pk.pack(string("data"));
+            auto len = pack.data.end-pack.data.start;
+            pk.pack_bin(len);
+            pk.pack_bin_body(buf.data()+pack.data.start, len);
+        }
+    }
 }

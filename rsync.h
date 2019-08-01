@@ -43,6 +43,18 @@ typedef struct {
     size_t end;
 } VectorView;
 
+typedef struct JsonChunk {
+     std::string fileRefId;
+     size_t size;
+     std::forward_list<Chunk> data;
+     JsonChunk(std::string&& _fileRefId, size_t _size, std::forward_list<Chunk>&& _data) :
+        fileRefId(std::move(_fileRefId)), size(_size), data(std::move(_data))
+     {}
+     JsonChunk(JsonChunk &&o) :
+        fileRefId(std::move(o.fileRefId)), size(o.size), data(std::move(o.data))
+     {}
+} JsonChunk;
+
 class Package {
 public:
     int type; // 1 - chunk, 2 - data
@@ -70,5 +82,8 @@ std::forward_list<Chunk> makeChunkFromFile(const std::string &path, size_t size)
 
 void writeResultToFile(const std::string &sourceFile, const std::string &topath, const std::vector<RChar> &data,
                        const std::list<Package> &result, size_t size);
+
+JsonChunk loadJsonChunks(const std::string& path);
+void writeResultToJson(const std::string &path, const std::list<Package> &result, const std::vector<RChar> buf);
 
 #endif //RSYNC_RSYNC_H

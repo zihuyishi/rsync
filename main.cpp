@@ -42,7 +42,7 @@ void writeResult(const string &topath, const vector<RChar> &originFile, const ve
     cout << "write to file " << topath << endl;
 }
 
-void printPackage(const vector<Package> &packages) {
+void printPackage(const list<Package> &packages) {
     for (const auto &p : packages) {
         if (p.type == 1) {
             cout << "package type is chunk, id " << p.chunk.id << std::endl;
@@ -81,7 +81,6 @@ int main(int argc, const char *argv[]) {
     cout << "cost " << d.count() / 1000.f << " ms\n";
 
 //    printPackage(result);
-//    writeResult("output", buf1, result);
     writeResultToFile(file1, "output", buf2, result, size);
     return 0;
 }
