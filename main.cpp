@@ -65,15 +65,13 @@ int main(int argc, const char *argv[]) {
     auto chunks = makeChunkFromFile(file1, size);
     cout << "file1 make chunks \n";
 //    buf1.clear();
-    auto buf2 = readFile(file2);
-    cout << "file2 length " << buf2.size() << endl;
 
     typedef std::chrono::high_resolution_clock Time;
     typedef std::chrono::microseconds ms;
     typedef std::chrono::duration<float> fsec;
     auto t0 = Time::now();
 
-    auto result = checksum(buf2, chunks, size);
+    auto result = checksum(file2, chunks, size);
 
     auto t1 = Time::now();
     fsec fs = t1 - t0;
@@ -81,6 +79,6 @@ int main(int argc, const char *argv[]) {
     cout << "cost " << d.count() / 1000.f << " ms\n";
 
     printPackage(result);
-//    writeResultToFile(file1, "output", buf2, result, size);
+    writeResultToFile(file1, "output", file2, result, size);
     return 0;
 }

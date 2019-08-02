@@ -53,6 +53,76 @@ public:
     }
 };
 
+/**
+ * 循环buffer
+ * 每次加载10倍的分块大小
+ * 加载更多的时候会将之前末尾分块大小的数据复制到开头
+ */
+class CircleFileBuffer {
+    RChar *m_buf;
+    size_t m_size;
+    size_t m_bufLen;
+    string m_path;
+    size_t m_filesize;
+    size_t m_bufInFile;
+    ifstream m_file;
+public:
+    CircleFileBuffer(const string& path, size_t size) {
+        m_size = size;
+        m_bufLen = size * 10;
+        m_buf = new RChar[size * 10];
+        m_path = path;
+        m_filesize = 0;
+        m_bufInFile = 0;
+    }
+    ~CircleFileBuffer() {
+        delete[] m_buf;
+    }
+
+    bool loadFile() {
+        m_file = ifstream(m_path, ifstream::ate | ifstream::binary);
+        if (!m_file.is_open()) {
+            return false;
+        }
+        m_filesize = m_file.tellg();
+        cout << "read file size " << m_filesize << endl;
+        m_file.seekg(0, ios::beg);
+        m_file.read(m_buf, m_bufLen);
+        return true;
+    }
+
+    size_t fileSize() {
+        return m_filesize;
+    }
+
+    /**
+     * 获取从offset开始的数据
+     * @param offset offset
+     * @return buf
+     */
+    const RChar* bufFrom(size_t offset) {
+        assert(offset >= m_bufInFile);
+        while (offset + m_size > m_bufInFile + m_bufLen) {
+            bool more = loadMore();
+            if (!more) {
+                break;
+            }
+        }
+        size_t pos = offset - m_bufInFile;
+        return m_buf + pos;
+    }
+
+    bool loadMore() {
+        if (m_file.eof()) {
+            return false;
+        }
+        std::memcpy(m_buf, m_buf + m_bufLen - m_size, m_size);
+        m_file.read(m_buf+m_size, m_bufLen - m_size);
+        m_bufInFile += m_bufLen - m_size;
+        return true;
+    }
+};
+
 /*
 string md5str(const vector<char>& buf, int offset, int size) {
     if (size + offset >= buf.size()) {
@@ -114,12 +184,13 @@ AdlerResult adler32(const RChar *buf, size_t offset, size_t size) {
     return adlerResult;
 }
 
-AdlerResult rolling_adler32(const vector<RChar> &buf, size_t offset, size_t size, const AdlerResult &pre) {
+
+AdlerResult rolling_adler32(const RChar* buf, size_t bufLen, size_t offset, size_t size, const AdlerResult &pre) {
     size_t k = offset - 1;
     size_t l = k + size - 1;
     uint32_t ak = buf[k];
     uint32_t al1 = 0;
-    if (l + 1 >= buf.size()) {
+    if (l + 1 >= bufLen) {
         al1 = 0;
     } else {
         al1 = buf[l + 1];
@@ -134,11 +205,18 @@ AdlerResult rolling_adler32(const vector<RChar> &buf, size_t offset, size_t size
     return result;
 }
 
-list<Package> checksum(const vector<RChar> &buf, forward_list<Chunk> &original, size_t size) {
+AdlerResult rolling_adler32(const vector<RChar> &buf, size_t offset, size_t size, const AdlerResult &pre) {
+    return rolling_adler32(buf.data(), buf.size(), offset, size, pre);
+}
+
+list<Package> checksum(const string &path, forward_list<Chunk> &original, size_t size) {
     auto table = new forward_list<Chunk>[65536];
     for (auto &chunk : original) {
         table[chunk.ad32.a].push_front(std::move(chunk));
     }
+    CircleFileBuffer file(path, size);
+    auto ret = file.loadFile();
+    assert(ret);
 
     auto result = list<Package>();
     size_t stackStart = 0;
@@ -147,13 +225,14 @@ list<Package> checksum(const vector<RChar> &buf, forward_list<Chunk> &original, 
     AdlerResult pre;
     size_t ad32_i = 0;
     size_t md5_i = 0;
-    for (size_t k = 0; k < buf.size(); k++) {
+    for (size_t k = 0; k < file.fileSize(); k++) {
+        const auto *buf = file.bufFrom(k);
+        size_t realSize = std::min(size, file.fileSize() - k);
         AdlerResult adler;
         if (hasPre) {
-            adler = rolling_adler32(buf, k, size, pre);
+            adler = rolling_adler32(buf, realSize, 0, size, pre);
         } else {
-            size_t realSize = std::min(size, buf.size() - k);
-            adler = adler32(buf, k, realSize);
+            adler = adler32(buf, 0, realSize);
         }
         pre = adler;
         hasPre = true;
@@ -166,7 +245,7 @@ list<Package> checksum(const vector<RChar> &buf, forward_list<Chunk> &original, 
                 }
                 ad32_i++;
                 if (vmd5.length() == 0) {
-                    vmd5 = md5str(buf, k, size);
+                    vmd5 = md5str(buf, 0, size);
                 }
                 if (vmd5 == chunk.md5) {
                     md5_i++;
@@ -277,13 +356,15 @@ forward_list<Chunk> makeChunkFromFile(const string &path, size_t size) {
     return result;
 }
 
-void writeResultToFile(const string &sourceFile, const string &topath, const vector<RChar> &data,
+void writeResultToFile(const string &sourceFile, const string &topath, const string &diffPath,
                        const list<Package> &result, size_t size) {
     ifstream in_file(sourceFile, ifstream::binary);
     assert(in_file.is_open());
     ofstream out_file(topath, ofstream::binary);
     assert(out_file.is_open());
-    auto buf = new char[size];
+    ifstream diff_file(diffPath, ifstream::binary);
+    assert(diff_file.is_open());
+    auto buf = new char[size*5];
     for (const auto &package : result) {
         if (package.type == 1) {
             // chunk
@@ -293,13 +374,16 @@ void writeResultToFile(const string &sourceFile, const string &topath, const vec
         } else {
             // data
             auto len = package.data.end - package.data.start;
-            out_file.write((char *) (data.data() + package.data.start), len);
+            diff_file.seekg(package.data.start);
+            diff_file.read(buf, len);
+            out_file.write(buf, len);
         }
     }
     delete[] buf;
     out_file.flush();
     in_file.close();
     out_file.close();
+    diff_file.close();
     cout << "write to file " << topath << endl;
 }
 
@@ -383,11 +467,13 @@ void writeResultToJson(const string &path, const list<Package> &result, const ve
 }
 
 
-void writeResultToStream(const list<Package> &result, const vector<RChar> buf, ostream &os) {
+void writeResultToStream(const list<Package> &result, const string &diffPath, ostream &os, size_t size) {
+    ifstream diff_file(diffPath, ifstream::binary);
     msgpack::packer<ostream> pk(&os);
     pk.pack(std::string("123456")); // fileId
     pk.pack(0); // version
     pk.pack_array(result.size());
+    char *buf = new char[size * 5];
     for (const auto& pack : result) {
         pk.pack_map(2);
         pk.pack(string("type"));
@@ -398,8 +484,10 @@ void writeResultToStream(const list<Package> &result, const vector<RChar> buf, o
         } else {
             pk.pack(string("data"));
             auto len = pack.data.end-pack.data.start;
+            diff_file.seekg(pack.data.start);
+            diff_file.read(buf, len);
             pk.pack_bin(len);
-            pk.pack_bin_body(buf.data()+pack.data.start, len);
+            pk.pack_bin_body(buf, len);
         }
     }
     cout << "write result to stream" << endl;

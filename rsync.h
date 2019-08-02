@@ -74,17 +74,16 @@ AdlerResult adler32(const RChar *buf, size_t offset, size_t size);
 
 AdlerResult rolling_adler32(const std::vector<RChar> &buf, size_t offset, size_t size, const AdlerResult &pre);
 
-std::list<Package> checksum(const std::vector<RChar> &buf, std::forward_list<Chunk> &original, size_t size);
+std::list<Package> checksum(const std::string &path, std::forward_list<Chunk> &original, size_t size);
 
 std::forward_list<Chunk> makeChunk(const std::vector<RChar> &data, size_t size);
 
 std::forward_list<Chunk> makeChunkFromFile(const std::string &path, size_t size);
 
-void writeResultToFile(const std::string &sourceFile, const std::string &topath, const std::vector<RChar> &data,
+void writeResultToFile(const std::string &sourceFile, const std::string &topath, const std::string &diffPath,
                        const std::list<Package> &result, size_t size);
 
 JsonChunk loadJsonChunks(const std::string& path);
-void writeResultToJson(const std::string &path, const std::list<Package> &result, const std::vector<RChar> buf);
-void writeResultToStream(const std::list<Package> &result, const std::vector<RChar> buf, std::ostream &os);
+void writeResultToStream(const std::list<Package> &result, const std::string &diffPath, std::ostream &os, size_t size);
 
 #endif //RSYNC_RSYNC_H
