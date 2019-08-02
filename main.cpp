@@ -80,7 +80,7 @@ int main(int argc, const char *argv[]) {
     ms d = std::chrono::duration_cast<ms>(fs);
     cout << "cost " << d.count() / 1000.f << " ms\n";
 
-//    printPackage(result);
-    writeResultToFile(file1, "output", buf2, result, size);
+    printPackage(result);
+//    writeResultToFile(file1, "output", buf2, result, size);
     return 0;
 }

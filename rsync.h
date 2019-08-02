@@ -85,5 +85,6 @@ void writeResultToFile(const std::string &sourceFile, const std::string &topath,
 
 JsonChunk loadJsonChunks(const std::string& path);
 void writeResultToJson(const std::string &path, const std::list<Package> &result, const std::vector<RChar> buf);
+void writeResultToStream(const std::list<Package> &result, const std::vector<RChar> buf, std::ostream &os);
 
 #endif //RSYNC_RSYNC_H

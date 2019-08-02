@@ -160,7 +160,6 @@ list<Package> checksum(const vector<RChar> &buf, forward_list<Chunk> &original, 
         if (!table[adler.a].empty()) {
             const auto &chunks = table[adler.a];
             auto vmd5 = string();
-            auto found = false;
             for (const auto &chunk : chunks) {
                 if (chunk.ad32.s != adler.s) {
                     continue;
@@ -192,7 +191,6 @@ list<Package> checksum(const vector<RChar> &buf, forward_list<Chunk> &original, 
                     k += size - 1;
                     stackStart = k + 1;
                     hasPre = false;
-                    found = true;
                     break;
                 }
             }
@@ -385,7 +383,7 @@ void writeResultToJson(const string &path, const list<Package> &result, const ve
 }
 
 
-void writeResultToStream(const string &path, const list<Package> &result, const vector<RChar> buf, ostream os) {
+void writeResultToStream(const list<Package> &result, const vector<RChar> buf, ostream &os) {
     msgpack::packer<ostream> pk(&os);
     pk.pack(std::string("123456")); // fileId
     pk.pack(0); // version
@@ -404,4 +402,5 @@ void writeResultToStream(const string &path, const list<Package> &result, const 
             pk.pack_bin_body(buf.data()+pack.data.start, len);
         }
     }
+    cout << "write result to stream" << endl;
 }

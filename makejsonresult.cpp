@@ -35,6 +35,8 @@ int main(int argc, const char *argv[]) {
     auto size = jsonChunk.size;
     auto buf2 = readFile(newFile);
     auto result = checksum(buf2, jsonChunk.data, size);
-    writeResultToJson("result.json", result, buf2);
+    ofstream os("result.msg", ofstream::binary);
+    writeResultToStream(result, buf2, os);
+    os.close();
     return 0;
 }
