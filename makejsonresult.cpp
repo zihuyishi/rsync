@@ -22,7 +22,6 @@ int main(int argc, const char *argv[]) {
     typedef std::chrono::duration<float> fsec;
     auto t0 = Time::now();
 
-
     auto sourceFile = argv[1];
     auto newFile = argv[2];
     auto jsonChunk = loadJsonChunks(sourceFile);

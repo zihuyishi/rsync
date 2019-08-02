@@ -3,6 +3,7 @@
 #include <openssl/md5.h>
 #include <iostream>
 #include <fstream>
+#include <thread>
 #include <rapidjson/document.h>
 #include <rapidjson/filereadstream.h>
 #include <rapidjson/filewritestream.h>
@@ -22,26 +23,38 @@ static const uint32_t M = 1u << 16u;
  */
 class CircleFileBuffer {
     RChar *m_buf;
+    RChar *m_cache;
     size_t m_size;
     size_t m_bufLen;
     string m_path;
     size_t m_filesize;
     size_t m_bufInFile;
     ifstream m_file;
+    thread m_thread;
 public:
     CircleFileBuffer(const string& path, size_t size) {
         m_size = size;
         m_bufLen = size * 10;
-        m_buf = new RChar[size * 10];
         m_path = path;
+        m_buf = nullptr;
+        m_cache = nullptr;
         m_filesize = 0;
         m_bufInFile = 0;
     }
     ~CircleFileBuffer() {
         delete[] m_buf;
+        delete[] m_cache;
+        if (m_file.is_open()) {
+            m_file.close();
+        }
     }
 
     bool loadFile() {
+        if (m_buf != nullptr) {
+            return false;
+        }
+        m_buf = new RChar[m_size * 10];
+        m_cache = new RChar[m_size * 10];
         m_file = ifstream(m_path, ifstream::ate | ifstream::binary);
         if (!m_file.is_open()) {
             return false;
@@ -50,6 +63,7 @@ public:
         cout << "read file size " << m_filesize << endl;
         m_file.seekg(0, ios::beg);
         m_file.read(m_buf, m_bufLen);
+        readToCache();
         return true;
     }
 
@@ -64,36 +78,34 @@ public:
      */
     const RChar* bufFrom(size_t offset) {
         assert(offset >= m_bufInFile);
-        while (offset + m_size > m_bufInFile + m_bufLen) {
-            bool more = loadMore();
-            if (!more) {
-                break;
-            }
+        if (offset + m_size > m_bufInFile + m_bufLen) {
+            loadMore();
         }
         size_t pos = offset - m_bufInFile;
         return m_buf + pos;
     }
 
-    bool loadMore() {
-        if (m_file.eof()) {
-            return false;
-        }
-        std::memcpy(m_buf, m_buf + m_bufLen - m_size, m_size);
-        m_file.read(m_buf+m_size, m_bufLen - m_size);
+    void loadMore() {
+        m_thread.join();
+        std::swap(m_buf, m_cache);
         m_bufInFile += m_bufLen - m_size;
-        return true;
+        if (!m_file.eof()) {
+            readToCache();
+        }
+    }
+private:
+    void readToCache() {
+        m_thread = thread([this] {
+            if (this->m_file.eof()) {
+                return false;
+            }
+            std::memcpy(m_cache, m_buf + m_bufLen - m_size, m_size);
+            m_file.read(m_cache + m_size, m_bufLen - m_size);
+            return true;
+        });
     }
 };
 
-/*
-string md5str(const vector<char>& buf, int offset, int size) {
-    if (size + offset >= buf.size()) {
-        size = buf.size() - offset;
-    }
-    MD5 md5(buf.data() + offset, size);
-    return md5.toStr();
-}
- */
 static const char HEX16[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
 string md5str(const RChar *buf, size_t offset, size_t size) {
@@ -221,7 +233,6 @@ list<Package> checksum(const string &path, forward_list<Chunk> &original, size_t
                                 }
                         );
                         result.push_back(std::move(pack));
-//                        stackData = vector<char>();
                     }
                     auto chunkPack = Package{
                             1,

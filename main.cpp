@@ -12,7 +12,7 @@ void printPackage(const list<Package> &packages) {
         if (p.type == 1) {
             cout << "package type is chunk, id " << p.chunk.id << std::endl;
         } else {
-            cout << "package type is data, length " << p.data.end - p.data.start << std::endl;
+            cout << "package type is data, offset" << p.data.start << ", length " << p.data.end - p.data.start << std::endl;
         }
     }
 }
