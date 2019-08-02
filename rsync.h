@@ -50,7 +50,7 @@ typedef struct JsonChunk {
      JsonChunk(std::string&& _fileRefId, size_t _size, std::forward_list<Chunk>&& _data) :
         fileRefId(std::move(_fileRefId)), size(_size), data(std::move(_data))
      {}
-     JsonChunk(JsonChunk &&o) :
+     JsonChunk(JsonChunk &&o) noexcept :
         fileRefId(std::move(o.fileRefId)), size(o.size), data(std::move(o.data))
      {}
 } JsonChunk;
@@ -84,6 +84,13 @@ void writeResultToFile(const std::string &sourceFile, const std::string &topath,
                        const std::list<Package> &result, size_t size);
 
 JsonChunk loadJsonChunks(const std::string& path);
+/**
+ * 将比较内容序列化到流os中
+ * @param result 比较结果
+ * @param diffPath 比较的文件
+ * @param os 输出
+ * @param size 分块大小
+ */
 void writeResultToStream(const std::list<Package> &result, const std::string &diffPath, std::ostream &os, size_t size);
 
 #endif //RSYNC_RSYNC_H

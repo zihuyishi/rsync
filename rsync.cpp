@@ -14,44 +14,6 @@ using namespace rapidjson;
 
 static const uint32_t M = 1u << 16u;
 
-class ChunkHashTable {
-    map<uint32_t, vector<Chunk>> m_table;
-public:
-    ChunkHashTable() = default;
-
-    vector<Chunk> &get(const AdlerResult &key) {
-        auto result = m_table.find(key.s);
-        if (result == m_table.end()) {
-            m_table.insert(make_pair(key.s, vector<Chunk>()));
-            return m_table[key.s];
-        }
-        return result->second;
-    }
-
-    bool exists(const AdlerResult &key) {
-        return m_table.find(key.s) != m_table.end();
-    }
-};
-
-class ChunkArrayTable {
-    vector<Chunk> *m_table;
-public:
-    ChunkArrayTable() {
-        m_table = new vector<Chunk>[65536];
-    }
-
-    ~ChunkArrayTable() {
-        delete[] m_table;
-    }
-
-    vector<Chunk> &get(const AdlerResult &key) {
-        return m_table[key.a];
-    }
-
-    bool exists(const AdlerResult &key) {
-        return !m_table[key.a].empty();
-    }
-};
 
 /**
  * 循环buffer
@@ -222,7 +184,7 @@ list<Package> checksum(const string &path, forward_list<Chunk> &original, size_t
     size_t stackStart = 0;
     size_t stackEnd = 0;
     bool hasPre = false;
-    AdlerResult pre;
+    AdlerResult pre = AdlerResult();
     size_t ad32_i = 0;
     size_t md5_i = 0;
     for (size_t k = 0; k < file.fileSize(); k++) {
@@ -277,6 +239,7 @@ list<Package> checksum(const string &path, forward_list<Chunk> &original, size_t
         stackEnd = k + 1;
         // make pack data not large than size
         if (stackEnd - stackStart >= size * 5) {
+            assert(stackEnd-stackStart == size * 5);
             auto pack = Package(
                     2,
                     Chunk{},
@@ -427,7 +390,7 @@ JsonChunk loadJsonChunks(const string &path) {
     return JsonChunk(std::move(fileRefId), size, std::move(chunks));
 }
 
-void writeResultToJson(const string &path, const list<Package> &result, const vector<RChar> buf) {
+void writeResultToJson(const string &path, const list<Package> &result, const vector<RChar> &buf) {
     FILE* fp = fopen(path.c_str(), "w");
     char writeBuffer[65536];
     FileWriteStream os(fp, writeBuffer, sizeof(writeBuffer));
@@ -470,6 +433,7 @@ void writeResultToJson(const string &path, const list<Package> &result, const ve
 void writeResultToStream(const list<Package> &result, const string &diffPath, ostream &os, size_t size) {
     ifstream diff_file(diffPath, ifstream::binary);
     msgpack::packer<ostream> pk(&os);
+    // todo: 需要传入文件信息
     pk.pack(std::string("123456")); // fileId
     pk.pack(0); // version
     pk.pack_array(result.size());
@@ -490,5 +454,6 @@ void writeResultToStream(const list<Package> &result, const string &diffPath, os
             pk.pack_bin_body(buf, len);
         }
     }
+    diff_file.close();
     cout << "write result to stream" << endl;
 }

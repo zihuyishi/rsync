@@ -4,30 +4,24 @@
 
 #include <iostream>
 #include <fstream>
+#include <chrono>
 #include "rsync.h"
 
 using namespace std;
 
-vector<RChar> readFile(const string &path) {
-    ifstream in_file(path, ifstream::binary);
-    assert(in_file.is_open());
-    auto vec = vector<RChar>();
-    const int size = 1024 * 1024;
-    auto buf = new char[size];
-    while (!in_file.eof()) {
-        in_file.read(buf, size);
-        vec.insert(vec.end(), buf, buf + in_file.gcount());
-    }
-    delete[] buf;
-    in_file.close();
-    return vec;
-}
+
 
 int main(int argc, const char *argv[]) {
     if (argc < 3) {
         cout << "usage: jsonresult [jsonFile] [newFile]" << endl;
         return 1;
     }
+
+    typedef std::chrono::high_resolution_clock Time;
+    typedef std::chrono::microseconds ms;
+    typedef std::chrono::duration<float> fsec;
+    auto t0 = Time::now();
+
 
     auto sourceFile = argv[1];
     auto newFile = argv[2];
@@ -37,5 +31,11 @@ int main(int argc, const char *argv[]) {
     ofstream os("result.msg", ofstream::binary);
     writeResultToStream(result, newFile, os, size);
     os.close();
+
+    auto t1 = Time::now();
+    fsec fs = t1 - t0;
+    ms d = std::chrono::duration_cast<ms>(fs);
+    cout << "cost " << d.count() / 1000.f << " ms\n";
+
     return 0;
 }
