@@ -249,8 +249,8 @@ list<Package> checksum(const string &path, forward_list<Chunk> &original, size_t
         }
         stackEnd = k + 1;
         // make pack data not large than size
-        if (stackEnd - stackStart >= size * 5) {
-            assert(stackEnd-stackStart == size * 5);
+        if (stackEnd - stackStart >= size) {
+            assert(stackEnd-stackStart == size);
             auto pack = Package(
                     2,
                     Chunk{},
