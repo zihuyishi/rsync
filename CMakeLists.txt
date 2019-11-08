@@ -23,3 +23,5 @@ target_link_libraries(rsync OpenSSL::Crypto)
 
 add_executable(jsonresult makejsonresult.cpp rsync.cpp rsync.h)
 target_link_libraries(jsonresult OpenSSL::Crypto)
+
+add_executable(div div.cpp)

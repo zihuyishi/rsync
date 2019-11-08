@@ -24,7 +24,7 @@ int main(int argc, const char *argv[]) {
     }
     auto file1 = argv[1];
     auto file2 = argv[2];
-    const int size = 2048 * 1024;
+    const int size = 1024;
     auto chunks = makeChunkFromFile(file1, size);
     cout << "file1 make chunks \n";
 
@@ -40,7 +40,7 @@ int main(int argc, const char *argv[]) {
     ms d = std::chrono::duration_cast<ms>(fs);
     cout << "cost " << d.count() / 1000.f << " ms\n";
 
-//    printPackage(result);
+    printPackage(result);
     writeResultToFile(file1, "output", file2, result, size);
     return 0;
 }

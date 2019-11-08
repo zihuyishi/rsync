@@ -47,6 +47,9 @@ public:
         if (m_file.is_open()) {
             m_file.close();
         }
+        if (m_thread.joinable()) {
+            m_thread.join();
+        }
     }
 
     bool loadFile() {
@@ -219,7 +222,7 @@ list<Package> checksum(const string &path, forward_list<Chunk> &original, size_t
                 }
                 ad32_i++;
                 if (vmd5.length() == 0) {
-                    vmd5 = md5str(buf, 0, size);
+                    vmd5 = md5str(buf, 0, realSize);
                 }
                 if (vmd5 == chunk.md5) {
                     md5_i++;
@@ -445,8 +448,10 @@ void writeResultToStream(const list<Package> &result, const string &diffPath, os
     ifstream diff_file(diffPath, ifstream::binary);
     msgpack::packer<ostream> pk(&os);
     // todo: 需要传入文件信息
+    /*
     pk.pack(std::string("123456")); // fileId
     pk.pack(0); // version
+     */
     pk.pack_array(result.size());
     char *buf = new char[size * 5];
     for (const auto& pack : result) {
